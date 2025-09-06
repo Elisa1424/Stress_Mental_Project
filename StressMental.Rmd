@@ -1,0 +1,434 @@
+---
+title: "Stress mentale nei studenti e meccanismi di coping"
+author: "Elisabetta Lapenna - 170691"
+date: "`r Sys.Date()`"
+css: stileProgetto.css
+output: 
+  rmdformats::readthedown:
+      highlight: kate
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, echo=FALSE}
+library(knitr)
+library(rmdformats)
+#knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+## Global options
+options(max.print=2000)
+knitr::opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=20)
+htmltools::img(src = knitr::image_uri("stress-giovani.jpg"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:150px; right:60px; width:270px; padding:10px;')
+```
+
+```{r caricamento librerie, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyverse) # Collection of all the good stuff like dplyr, ggplot2 ect.
+library(ggraph)
+```
+
+```{r script analisi, include=FALSE}
+source("function/analisi_strutturale.R", local = knitr::knit_global())
+```
+
+```{r caricamento file, echo=FALSE}
+fileCSV <- "database.csv"
+database <- read.csv(fileCSV)
+database <- read_delim("database.csv", delim = ";", escape_double = FALSE, trim_ws = TRUE)
+colnames(database)<- c("studente","eta","genere","gpa","ore_studio", "ore_social", "ore_sonno", "eserc_fisico", "supp_famiglia", "stress_finanz", "stress_parità", "stress_relaz", "stress_mental", "consulenza", "quali_dieta", "meccanismi_coping", "distorsioni_cognitive", "family_mental_health", "condiz_mediche", "uso_sostanze")
+```
+
+# Introduzione
+
+## Cos'è lo stress mentale nei giovani?
+
+Lo stress è una reazione fisica o psicologica del soggetto a delle
+situazioni che possono metterlo a dura prova. Si tratta di una
+risposta soggettiva che dipende anundefinedche dal livello di fragilità
+del soggetto e non solo dall’entità del fattore scatenante. Lo stress
+nei giovani è un fenomeno in crescita che coinvolge milioni di ragazzi
+in Italia e nel mondo. Tale fenomeno può manifestarsi nei giovani per
+diversi fattori: sociali, familiari, scolastici
+
+Lo scopo del progetto è quello di eseguire un'analisi sui fattori che
+possono causare questo fenomeno nei giovani tra i 18-30 anni. Inoltre,
+analizzeremo anche quali meccanismi di coping i giovani utilizzano per
+alleviare lo stress.
+
+## Fonte dei dati
+
+I dati analizzti in questo progetto sono stati scaricati da Kaggle, un
+ambiente di lavoro in cui sono presenti diversi database pubblici.
+
+Questo set di dati fornisce informazioni sui livelli di stress mentale
+sperimentati dagli studenti, nonché sui meccanismi di coping che
+utilizzano per gestirlo. I dati includono una varietà di fattori, come
+il rendimento scolastico, le abitudini di vita, le influenze sociali e
+gli aspetti relativi alla salute mentale, nonché le strategie degli
+studenti per gestire lo stress.
+
+# Analisi dei dati
+
+## Analisi strutturale
+
+La tabella presenta diverse colonne nella struttura del dataset preso in
+esame, le quali riportano diversi attributi, sia di tipo categorico che
+ordinale.
+
+```{r analisi descrittiva, echo=FALSE, paged.print=FALSE}
+
+S<-analisi_strutturale(object = database, k=100, pause = FALSE)
+
+```
+
+## Analisi relazionale
+
+In questa sezione, ci concentremo sulla relazione tra i diversi dati
+presenti nel database, proprio per evidenziare come diversi fattori
+incidono sugli indici di stress di uno studente.
+
+### E' possibile classificare l'indice di stress mentale in base al genere?
+
+Nella visualizzazione sottostante, l'obiettivo è quello di mostrare come
+sono distributi i diversi studenti con particolare indice di stress, in
+base al loro genere. I dati raccolti mostrano una maggioranza di
+studenti di genere femminile e maschile, ed inoltre, a prima vista,
+questi due generi sono distribuiti allo stesso modo. Questo può voler
+dire che nè il genere maschile e nè il genere femminili sono fattori che
+possono influenzare lo stress nello studente.
+
+```{r}
+ggplot(database) + 
+  geom_bar(mapping = aes(x = stress_mental, fill = genere)) + 
+  labs(x = "Livello di stress mentale", y = "Numero di studenti", fill = "Livelli di genere") +
+  labs(title = "Stress mentale per Genere")+
+  theme_bw() +
+  scale_x_continuous(breaks= (database$stress_mental[seq(1,length(database$stress_mental),by=1)])) +
+  theme(legend.position = "right" 
+        ,axis.text.x = element_text(hjust = 0.5, size = 10, vjust = 0)) 
+
+```
+
+### E' possibile classificare l'indice di stress mentale in base all'età?
+
+In questo caso, l'obiettivo è quello di analizzare come l'età dello
+studente potrebbe influenzare sul suo indice di stress.
+
+In primo luogo, possiamo notare che un'alta frequenza di indice di
+stress di valore 10 è presente negli studenti di età 18 e 30.
+
+```{r}
+stress_aggregate=aggregate(database$studente,by=list(database$eta, database$stress_mental),length)
+names(stress_aggregate)= c("Eta", "Stress", "Studente")
+
+#print(stress_aggregate)
+
+
+ggplot(data = stress_aggregate) + 
+ geom_bar(mapping = aes(x = Eta, y = Studente), stat = "identity") +
+  labs(title = "Stress mentale per Età")+
+  labs(y = "Numero studenti") +
+ scale_x_continuous(breaks= (stress_aggregate$Eta[seq(1,length(stress_aggregate$Eta),by=1)])) + 
+  facet_grid(stress_aggregate$Stress)
+
+```
+
+### Le ore di studio influenzano il rendimento accademico(GPA)?
+
+In seguito, è stato analizzato il rendimento accademico degli studenti
+proporzionato alle ore di studio impiegate, con lo scopo di visualizzare
+quanto le ore di studio influenzino sul rendimento finale dello
+studente.
+
+```{r}
+gpa_aggregate = aggregate(database$ore_studio,by=list(database$gpa), mean)
+names(gpa_aggregate) = c("Gpa", "Ore")
+
+print(gpa_aggregate)
+
+ggplot(data = gpa_aggregate) + 
+  geom_line(mapping = aes(x = Gpa, y = Ore)) + 
+  labs(title = "Ore di studio per Rendimento Accademico")+
+  labs(y = "Ore di studio") 
+```
+
+In effetti, dal grafico è possibile notare come i due livelli di
+rendimento estremi, variano tra loro per un valore di circa 0.5,
+rispetto ai livelli intermedi. Infatti, con ciò è possibile affermare
+che non sempre le troppe ore impiegate incidono sul rendimento finale.
+
+### Le distorsioni cognitive possono influenzare il rendimento accademico(GPA)?
+
+Molto spesso il rendimento accademico di uno studente può essere
+ostacolato da diversi fattori, come ad esempio distorsioni cognitive.
+Alcune di queste possono essere
+
+-   Pensiero dicotomico (o bianco/nero)
+
+-   Generalizzazione eccessiva 
+
+-   Esclusione del positivo
+
+-   Il ragionamento emotivo (basare le proprie convinzioni sulle
+    emozioni). 
+
+Il più delle volte, queste distorsioni compromettono il reale rendimento
+dello studente, portandolo ad uno stato elevato di stress mentale e
+riduzione del rendimento accademico.
+
+```{r}
+dist_aggregate = aggregate(database$studente,by=list(database$distorsioni_cognitive, database$gpa), length)
+names(dist_aggregate) = c("Distorsioni", "GPA", "somma")
+
+ggplot(data = dist_aggregate) + 
+ geom_bar(mapping = aes(x = Distorsioni, y = somma, fill = GPA), stat = "identity") +
+  labs(title = "Gpa per Distorsioni cognitive ")+
+  labs(y = "Numero studenti") +
+ scale_x_continuous(breaks= (dist_aggregate$Distorsioni[seq(1,length(dist_aggregate$Distorsioni),by=1)])) + 
+  facet_grid(dist_aggregate$GPA) + 
+  scale_fill_viridis()
+
+```
+
+E' possibile osservare, dove vi è un elevato livello di distorsioni
+cognitive, sale il numero di studenti con GPA basso. Allo stesso modo,
+alcuni casi in cui si ha indice basso di distorsioni cognitive, il
+numero di studenti con livello di GPA basso sembrerebbe più elevato
+rispetto al caso di GPA alto. Inoltre, è possibile osservare che ciò non
+vale per tutti i casi, ma in alcune situazioni, nonostante il livello di
+distorsione è basso, il numero di studenti con GPA elevato risulta più
+basso rispetto a casi in cui i livelli di distorsioni sono più elevati.
+In questo caso, potrebbe vuol dire che il livello di GPA non è solo
+condizionato da questi schemi di pensiero, ma da altre cause come le ore
+di studio oppure le ore di sonno impiegate.
+
+### Qual è l'andamento degli indice di stress mentale?
+
+Questo grafico sull'andamento ci permette di visualizzare come sono
+divisi il numero degli studenti per ogni livello di stress.
+
+Gli indici con un numero minore di studenti risultano gli indici 6 e 7.
+
+Mentre la maggior parte degli studenti possiedono un indice di stress
+pari a 2.
+
+Mentre per i livelli maggiori, il numero di studenti rimane più o meno
+costante, con picchi sull'indice 5 e l'indice 10.
+
+```{r}
+var1<-group_by(database, stress_mental)
+
+var2<-summarise(var1,
+              count = n()
+)
+
+print(var2)
+
+ggplot(data = var2) + 
+  geom_line(mapping = aes(x = stress_mental, y = count)) + 
+ labs(title = "Andamento stress negli studenti") + 
+  labs(y = "Numero studenti", x = "Livelli di stress mentale") +
+  scale_x_continuous(breaks= (var2$stress_mental[seq(1,length(var2$stress_mental),by=1)])) + 
+  scale_y_continuous(limits = c(60, 100)) +
+  geom_smooth(mapping = aes(x = stress_mental, y = count), color = "red")
+```
+
+### Lo stress mentale da cosa può essere influenzato?
+
+La presenza di stress mentale negli studenti può derivare da altri
+fattori di stress, come
+
+-   stress finannziario
+
+-   stress derivato dal paragonarsi con gli altri (parità)
+
+-   stress relazionale
+
+```{r}
+stress_relaz<-group_by(database, stress_relaz)
+
+var1<-summarise(stress_relaz,
+              count = n()
+)
+
+stress_parit<-group_by(database, stress_parità)
+
+var2<-summarise(stress_parit,
+              count1 = n()
+)
+
+stress_finan<-group_by(database, stress_finanz)
+
+var3<-summarise(stress_finan,
+              count2 = n()
+)
+
+mioTibble<-tibble(
+    var1,
+    var2,
+    var3
+)
+
+ggplot(data = mioTibble) + 
+  geom_line(mapping = aes(x= stress_relaz, y = count, color = "Relazionale")) + 
+  geom_line(mapping = aes(x= stress_parità, y = count1,  color = "Parità")) + 
+  geom_line(mapping = aes(x= stress_finanz, y = count2, color = "Finanziario")) +
+  labs(x = "Indici di Stress", y = "Numero Studenti", color = "Tipo di stress") + 
+   labs(title = "Andamento diversi tipi di stress negli studenti") 
+  
+```
+
+Con il seguente grafico, è possibile visualizzare l'andamento del numero
+degli studenti per ognuno dei diversi fattori di stress. Infatti, è
+possibile notare come un gran numero di studenti presenta un indice 5 di
+stress finanziario, mentre gli altri due fattori raggiungono un numero
+elevato di studenti negli indici intermedi.
+
+### Quanti studenti effettuano delle consulenze?
+
+E' importante, quando si è in una situazione di stress sopratutto per
+gli studenti, effettuare delle consulenze con medici specializzati, i
+quali possono aiutare nel affrontare al meglio situazioni che portano ad
+alti livelli di stress.
+
+```{r}
+
+ggplot(data = database) + 
+  geom_bar(mapping = aes(x = stress_mental, fill = consulenza), position = "dodge") + 
+ labs(title = "Andamento stress negli studenti") + 
+  scale_x_continuous(breaks= (database$stress_mental[seq(1,length(database$stress_mental),by=1)])) +
+labs(x = "Livelli di Stress", y = "Numero Studenti", color = "Tipo di stress") + 
+labs(title = "Studenti che effettuano delle consulenze") + 
+  theme(legend.position = "top")
+  
+```
+
+Tramite il grafico precedente è possibile notare quanti studenti,
+appartenenti a diversi livelli di stressi, effettuano delle conseguenze.
+Dalla visualizzazione possiamo notare che per ogni livello di stress
+circa la metà sono seguiti da degli specializzati e l'altra metà ignora
+la consulenza. Solo in pochi livelli, il numero di studenti che effettua
+delle consulenze prevale su quelli che non la eseguano affatto.
+
+### Vi è una relazione tra esercizio fisico e qualità della dieta?
+
+Negli studenti è importante mantenere una giusta qualità della dieta,
+associata con dell'esercizio fisico, poichè la loro combinazione
+permette di alleviare lo stress mentale.
+
+Infatti, il seguente grafico mostra come i diversi studenti combinano
+ore di esercizio fisico a settimana con un adeguata qualità di dieta.
+Dal grafico, è possibile visualizzare che non tutti coloro che fanno
+esercizio fisico, seguono hanno un giusto livello di dieta e viceversa.
+Ma allo stesso tempo, sono molti gli studenti che cercano di relazionare
+le giuste ore di esercizio fisico ad una corretta dieta.
+
+```{r}
+
+eser<-group_by(database,quali_dieta, eserc_fisico)
+esercizio<-summarise(eser, 
+                     count = n())
+
+ggplot(data = esercizio, aes(x = eserc_fisico, y = count, color = quali_dieta)) + 
+  geom_point() +
+ # geom_line() + 
+ scale_color_viridis() + 
+  labs(x = "Ore esercizio fisico", y = "Numero Studenti", color = "Qualità della dieta") + 
+ labs(title = "Relazione tra esercizio fisico e dieta") + 
+  geom_jitter()
+
+```
+
+### Meccanismi di Coping
+
+I meccanismi di coping sono un insieme di tecniche che le persone
+adottano per gestire e risolvere situazioni di stress, che incidono
+sulle risorse individuali. Tali meccanismi sono fondamentali per
+mantenere l'equilibrio psicologico e il benessere personale.
+
+Gli studenti, del caso di studio in questione, per fronteggiare
+situazioni di stress, dovuti da molti fattori, hanno dichiarato di
+adottare delle strategie di coping come
+
+-   Esercizio fisico
+
+-   Meditazione
+
+-   Lettura
+
+-   Yoga
+
+-   Utilizzo dei social media
+
+-   Spendere del tempo soli
+
+-   Parlare con gli amici
+
+-   Viaggiare
+
+-   Passeggiare, alcuni più nello specifico nella natura
+
+-   Guardare lo sport
+
+    ### Quali sono le strategie più utilizzate negli studenti?
+
+```{r}
+coping<-group_by(database, meccanismi_coping)
+
+mecc_coping<-summarise(coping, studenti = n())
+#print(mecc_coping)
+
+ggplot(data = mecc_coping, aes(x = meccanismi_coping, y = studenti, fill = meccanismi_coping)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.2)) +
+  geom_text(aes(label = paste(round(studenti/sum(studenti) * 100), "%", sep="")), position = position_dodge(width = 0.9), vjust = -0.25) +
+  scale_y_continuous(limits = c(0, 100)) +
+  labs(x = "Meccanismi di coping", y = "Numero Studenti", title = "Percentuali di meccanismi di coping", fill = "Strategie")
+
+  
+```
+
+Dal grafico precedente, è possibile osservare che la strategia più
+utilizzata dagli studenti per alleviare lo stress è la lettura con il
+12% degli studenti che adottano questo meccanismo. Inoltre, tutti gli
+altri tipi di meccanismi sono equamente utilizzati, e solo uno di essi
+risulta il più basso (parlare con gli amici) con l'8%.
+
+# Conclusioni
+
+Questo progetto si è posto l’obiettivo di analizzare il livello di
+stress percepito dagli studenti, evidenziando i fattori principali che
+lo influenzano e le possibili strategie per il benessere accademico e
+psicologico.
+
+Dall'analisi dei dati è emerso che gli studenti di qualsiasi età e
+genere possono attraversare periodi di stress, dovuto da diversi fattori
+come l'aspetto finanziario, relazionale e di paragone con gli altri.
+
+Inoltre, i giovani la maggior parte delle volte sono sopraffatti da
+distorsioni cognitive che compromettono il rendimento accademico dello
+stesso, portandolo ad ulteriori situazioni di stress. Infatti, dallo
+studio dei dati è emerso che queste situazioni compromettono il
+rendimento degli studenti in alcuni casi.
+
+D'altronde alcuni di questi studenti effettuano delle consulenze che gli
+permettono di affrontare al meglio determinate situazioni di stress.
+
+Dai dati presi in esame, è venuto fuori che molti giovani cercano di
+seguire uno stile di vita sano tra esercizio fisico e qualità della
+dieta, in modo tale da alleviare in qualche modo le diverse situazioni
+di stress quotidiano.
+
+Infine, è emerso dai dati che gli studenti utilizzano diverse strategie
+di coping, che gli permettono di gestire o ridurre situazioni stressanti
+come lo yoga, la meditazione oppure dedicarsi alla lettura.
